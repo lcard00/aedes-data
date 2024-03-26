@@ -101,11 +101,10 @@ def get_url_resp(url, disease, geocode, format, ew_start, ew_end, year, log=Fals
     return "?".join([url, params_url])
 
 
-def set_csv_path(params, log=False):
+def set_csv_path(params, uf=False, log=False):
     df = params["ibge_data"]
-    state = params["state"]
-    
-    if not state:
+
+    if not uf:
         return df.apply(
             lambda row: f"data/{params["country"]}/{row['mesorregiao_uf'].lower()}/{row['geocode']}",
             axis=1,
