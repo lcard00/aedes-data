@@ -50,14 +50,17 @@ def check_dir(dir_path, log=False):
         return True
 
 
-def check_file(file_path):
+def check_file(file_path, type="csv"):
     exists = False
     if os.path.exists(file_path):
-        with open(file_path, "r") as f:
-            lines = f.readlines()
-            lines_without_space = [line.strip() for line in lines if line.strip()]
-            if lines_without_space:
-                exists = True
+        if type == "parquet":
+            return True
+        else:
+            with open(file_path, "r") as f:
+                lines = f.readlines()
+                lines_without_space = [line.strip() for line in lines if line.strip()]
+                if lines_without_space:
+                    exists = True
 
     return exists
 
@@ -101,16 +104,21 @@ def get_url_resp(url, disease, geocode, format, ew_start, ew_end, year, log=Fals
     return "?".join([url, params_url])
 
 
-def set_csv_path(params, uf=False, log=False):
+def set_csv_path(params, uf=False, country=False, log=False):
     df = params["ibge_data"]
 
-    if not uf:
-        return df.apply(
-            lambda row: f"data/{params["country"]}/{row['mesorregiao_uf'].lower()}/{row['geocode']}",
-            axis=1,
-        )
-    else:
+    if uf:
         return df.apply(
         lambda row: f"data/{params["country"]}/{row['mesorregiao_uf'].lower()}",
         axis=1,
     )
+    elif country:
+        return df.apply(
+        lambda row: f"data/{params["country"]}",
+        axis=1,
+    )
+    else:
+        return df.apply(
+            lambda row: f"data/{params["country"]}/{row['mesorregiao_uf'].lower()}/{row['geocode']}",
+            axis=1,
+        )
