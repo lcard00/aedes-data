@@ -7,7 +7,7 @@ from src.utils import check_dir, check_file, set_csv_path
 def merge_city(params, log=False):
     infodengue_file_name = params["infodengue_file_name"]
 
-    df = params["ibge_data"]
+    df = params["ibge_data"].sort_values(by=["mesorregiao_uf", "municipio"])
 
     df["csv_path"] = set_csv_path(params, log=log)
 
@@ -25,19 +25,13 @@ def merge_city(params, log=False):
 
         for file in os.listdir(city_path):
             city_file = os.path.join(city_path, file)
-            file_path = f"{infodengue_file_name}.csv"
+            file_path = f"{infodengue_file_name}.parquet"
 
-            if check_file(city_file) and file[:5] == "aedes":
+            if check_file(city_file, type="parquet") and file[:5] == "aedes":
                 list_df.append(pd.read_csv(city_file))
 
         if list_df:
             df_city = create_df(list_df)
-
-            columns_city = df_city.columns.tolist()
-            columns_city.remove("disease")
-            columns_city.remove("geocode")
-
-            columns_city = columns_ibge() + columns_city
 
             df_city["country"] = row["country"]
             df_city["municipio"] = row["municipio"]
@@ -56,9 +50,8 @@ def merge_city(params, log=False):
                 "regiao_intermediaria_uf_regiao_nome"
             ]
 
-            df_city.sort_values(by=["disease", "SE"], ascending=[True, False]).to_csv(
+            df_city.sort_values(by=["disease", "SE"], ascending=[True, False]).to_parquet(
                 os.path.join(city_path, file_path),
-                columns=columns_city,
                 index=False,
             )
 
@@ -75,11 +68,7 @@ def merge_city(params, log=False):
 
 def merge_uf(params, log=False):
     infodengue_file_name = params["infodengue_file_name"]
-    df = params["ibge_data"].sort_values(by=["mesorregiao_uf", "municipio"])
-
-    df = df[["mesorregiao_uf", "geocode"]]
-    df["csv_path"] = set_csv_path(params, log=log)
-    df["uf_path"] = set_csv_path(params, uf=True, log=log)
+    df = merge_df(params, uf=True, log=log).sort_values(by=["mesorregiao_uf"])
 
     if log:
         logging.info(f"Merging UF data...")
@@ -95,21 +84,21 @@ def merge_uf(params, log=False):
             df_uf = df[mask].reset_index(drop=True)
 
             uf_path = df_uf["uf_path"][0]
-            uf_file = f"{infodengue_file_name}_{uf.lower()}.csv"
-            file_name = f"{infodengue_file_name}.csv"
+            uf_file = f"{infodengue_file_name}_{uf.lower()}.parquet"
+            file_name = f"{infodengue_file_name}.parquet"
 
             list_city = []
 
             for index, row in df_uf.iterrows():
                 file_path = os.path.join(row["csv_path"], file_name)
 
-                if check_file(file_path):
-                    list_city.append(pd.read_csv(file_path))
+                if check_file(file_path, type="parquet"):
+                    list_city.append(pd.read_parquet(file_path))
 
             df_city = create_df(list_city).sort_values(
                 by=["geocode", "disease", "SE"], ascending=[True, True, False]
             )
-            df_city.to_csv(
+            df_city.to_parquet(
                 os.path.join(uf_path, uf_file),
                 index=False,
             )
@@ -120,24 +109,54 @@ def merge_uf(params, log=False):
             logging.info(f"No UF data found!")
 
 
-def columns_ibge():
-    columns = [
-        "disease",
-        "country",
-        "geocode",
-        "municipio",
-        "microrregiao",
-        "mesorregiao",
-        "mesorregiao_uf",
-        "mesorregiao_uf_nome",
-        "mesorregiao_uf_regiao_nome",
-        "regiao_imediata",
-        "regiao_intermediaria",
-        "regiao_intermediaria_uf",
-        "regiao_intermediaria_uf_nome",
-        "regiao_intermediaria_uf_regiao_nome",
-    ]
-    return columns
+def merge_country(params, log=False):
+    infodengue_file_name = params["infodengue_file_name"]
+    country = params["country"]
+    df = merge_df(params, country=True, uf=True, log=log)
+    df = df[["mesorregiao_uf", "uf_path", "country_path"]]
+
+    df.drop_duplicates(inplace=True)
+
+    if log:
+        logging.info(f"Merging country data...")
+
+    country_file = f"{infodengue_file_name}_{country.lower()}.parquet"
+    country_file_path = os.path.join(df["country_path"].values[0], country_file)
+    
+    list_uf = []
+    
+    for index, row in df.iterrows():
+        uf_file = f"{infodengue_file_name}_{row["mesorregiao_uf"].lower()}.parquet"
+        uf_file_path = os.path.join(row["uf_path"], uf_file)
+
+        if check_file(uf_file_path, type="parquet"):
+            list_uf.append(pd.read_parquet(uf_file_path))
+    
+    if list_uf:
+        df_country = create_df(list_uf).sort_values(
+            by=["mesorregiao_uf", "geocode", "disease", "SE"], ascending=[True, True, True, False]
+        )
+
+        df_country.to_parquet(country_file_path, index=False)
+        
+        if log:
+            logging.info(f"Merging country data done!")
+    else:
+        if log:
+            logging.info(f"No country data found!")
+            
+
+def merge_df(params, uf=False, country=False, log=False):
+    df = params["ibge_data"].sort_values(by=["mesorregiao_uf", "municipio"])
+
+    df = df[["mesorregiao_uf", "geocode"]]
+    df["csv_path"] = set_csv_path(params, log=log)
+    if uf:
+        df["uf_path"] = set_csv_path(params, uf=True, log=log)
+    if country:
+        df["country_path"] = set_csv_path(params, country=True, log=log)
+
+    return df
 
 
 def create_df(list_df):
