@@ -25,45 +25,142 @@ def merge_city(params, log=False):
 
         for file in os.listdir(city_path):
             city_file = os.path.join(city_path, file)
-            file_path = f"{infodengue_file_name}.parquet"
+            file = f"{infodengue_file_name}.parquet"
+            file_path = os.path.join(city_path, file)
 
-            if check_file(city_file, type="parquet") and file[:5] == "aedes":
+            if city_file.endswith(".csv") and check_file(city_file):
                 list_df.append(pd.read_csv(city_file))
 
         if list_df:
-            df_city = create_df(list_df)
+            add_columns_and_save(list_df, file_path, row, log=log)
 
-            df_city["country"] = row["country"]
-            df_city["municipio"] = row["municipio"]
-            df_city["microrregiao"] = row["microrregiao"]
-            df_city["mesorregiao"] = row["mesorregiao"]
-            df_city["mesorregiao_uf"] = row["mesorregiao_uf"]
-            df_city["mesorregiao_uf_nome"] = row["mesorregiao_uf_nome"]
-            df_city["mesorregiao_uf_regiao_nome"] = row["mesorregiao_uf_regiao_nome"]
-            df_city["regiao_imediata"] = row["regiao_imediata"]
-            df_city["regiao_intermediaria"] = row["regiao_intermediaria"]
-            df_city["regiao_intermediaria_uf"] = row["regiao_intermediaria_uf"]
-            df_city["regiao_intermediaria_uf_nome"] = row[
-                "regiao_intermediaria_uf_nome"
-            ]
-            df_city["regiao_intermediaria_uf_regiao_nome"] = row[
-                "regiao_intermediaria_uf_regiao_nome"
-            ]
-
-            df_city.sort_values(by=["disease", "SE"], ascending=[True, False]).to_parquet(
-                os.path.join(city_path, file_path),
-                index=False,
-            )
-
-            if log:
-                logging.info(
-                    f"{row['municipio']} ({row['mesorregiao_uf']}) - Merging done!"
-                )
         else:
             if log:
                 logging.info(
                     f"{row['municipio']} ({row['mesorregiao_uf']}) - No data found!"
                 )
+
+
+def transform_columns(df, log=False):
+    df["tweet"] = 0
+    df = drop_columns(df, log=log)
+
+    columns = [
+        "casos_est",
+        "casos_est_min",
+        "casos_est_max",
+        "casos",
+        "pop",
+        "notif_accum_year",
+    ]
+    if log:
+        logging.info(f"Casting columns {columns}...")
+    df[columns] = df[columns].fillna(0).astype(int)
+
+    columns = ["p_rt1", "p_inc100k", "Rt", "tempmin", "tempmed", "tempmax"]
+    if log:
+        logging.info(f"Rounding columns {columns}...")
+
+    df = df.round(
+        {
+            "p_rt1": 2,
+            "p_inc100k": 4,
+            "Rt": 2,
+            "tempmin": 2,
+            "tempmed": 2,
+            "tempmax": 2,
+            "umidmin": 2,
+            "umidmed": 2,
+            "umidmax": 2,
+        }
+    )
+
+    columns = ["year", "week", "receptivo", "transmissao", "nivel_inc"]
+
+    if log:
+        logging.info(f"Adding columns {columns}...")
+
+    df["receptivo"] = df["receptivo"].apply(data_receptivo)
+    df["transmissao"] = df["transmissao"].fillna(0).apply(data_transmissao)
+    df["nivel_inc"] = df["nivel_inc"].apply(data_nivel_inc)
+
+    df["year"] = df["SE"] // 100
+    df["SE"] = df["SE"] % 100
+
+    return df
+
+
+def data_receptivo(value):
+    switcher = {
+        0: "desfavorável",
+        1: "favorável",
+        2: "favorável nesta semana e na semana passada",
+        3: "favorável por pelo menos três semanas",
+    }
+
+    return switcher.get(value, "Invalid")
+
+
+def data_transmissao(value):
+    switcher = {
+        0: "nenhuma evidência",
+        1: "possível",
+        2: "provável",
+        3: "altamente provável",
+    }
+
+    return switcher.get(value, "Invalid")
+
+
+def data_nivel_inc(value):
+    switcher = {
+        0: "Incidência estimada abaixo do limiar pré-epidemia",
+        1: "acima do limiar pré-epidemia, mas abaixo do limiar epidêmico",
+        2: "acima do limiar epidêmico",
+    }
+
+    return switcher.get(value, "Invalid")
+
+
+def drop_columns(df, log=False):
+    columns = ["data_iniSE", "Localidade_id", "id", "tweet", "versao_modelo"]
+    if log:
+        logging.info(f"Dropping columns {columns}...")
+
+    df.drop(
+        columns=columns,
+        inplace=True,
+    )
+    return df
+
+
+def add_columns_and_save(list_df, file_path, row, log=False):
+    df = transform_columns(create_df(list_df), log=log)
+
+    df["country"] = row["country"]
+    df["municipio"] = row["municipio"]
+    df["microrregiao"] = row["microrregiao"]
+    df["mesorregiao"] = row["mesorregiao"]
+    df["mesorregiao_uf"] = row["mesorregiao_uf"]
+    df["mesorregiao_uf_nome"] = row["mesorregiao_uf_nome"]
+    df["mesorregiao_uf_regiao_nome"] = row["mesorregiao_uf_regiao_nome"]
+    df["regiao_imediata"] = row["regiao_imediata"]
+    df["regiao_intermediaria"] = row["regiao_intermediaria"]
+    df["regiao_intermediaria_uf"] = row["regiao_intermediaria_uf"]
+    df["regiao_intermediaria_uf_nome"] = row["regiao_intermediaria_uf_nome"]
+    df["regiao_intermediaria_uf_regiao_nome"] = row[
+        "regiao_intermediaria_uf_regiao_nome"
+    ]
+
+    df.sort_values(
+        by=["disease", "year", "SE"], ascending=[True, False, False]
+    ).to_parquet(
+        file_path,
+        index=False,
+    )
+
+    if log:
+        logging.info(f"{row['municipio']} ({row['mesorregiao_uf']}) - Merging done!")
 
 
 def merge_uf(params, log=False):
@@ -78,7 +175,7 @@ def merge_uf(params, log=False):
     if list_uf:
         for uf in list_uf:
             if log:
-                logging.info(f"Merging UF {uf} data...")
+                logging.info(f"Merging UF [{uf}] data...")
 
             mask = df["mesorregiao_uf"] == uf
             df_uf = df[mask].reset_index(drop=True)
@@ -96,7 +193,8 @@ def merge_uf(params, log=False):
                     list_city.append(pd.read_parquet(file_path))
 
             df_city = create_df(list_city).sort_values(
-                by=["geocode", "disease", "SE"], ascending=[True, True, False]
+                by=["geocode", "disease", "year", "SE"],
+                ascending=[True, True, False, False],
             )
             df_city.to_parquet(
                 os.path.join(uf_path, uf_file),
@@ -122,29 +220,30 @@ def merge_country(params, log=False):
 
     country_file = f"{infodengue_file_name}_{country.lower()}.parquet"
     country_file_path = os.path.join(df["country_path"].values[0], country_file)
-    
+
     list_uf = []
-    
+
     for index, row in df.iterrows():
-        uf_file = f"{infodengue_file_name}_{row["mesorregiao_uf"].lower()}.parquet"
+        uf_file = f"{infodengue_file_name}_{row['mesorregiao_uf'].lower()}.parquet"
         uf_file_path = os.path.join(row["uf_path"], uf_file)
 
         if check_file(uf_file_path, type="parquet"):
             list_uf.append(pd.read_parquet(uf_file_path))
-    
+
     if list_uf:
         df_country = create_df(list_uf).sort_values(
-            by=["mesorregiao_uf", "geocode", "disease", "SE"], ascending=[True, True, True, False]
+            by=["mesorregiao_uf", "geocode", "disease", "year", "SE"],
+            ascending=[True, True, True, False, False],
         )
 
         df_country.to_parquet(country_file_path, index=False)
-        
+
         if log:
             logging.info(f"Merging country data done!")
     else:
         if log:
             logging.info(f"No country data found!")
-            
+
 
 def merge_df(params, uf=False, country=False, log=False):
     df = params["ibge_data"].sort_values(by=["mesorregiao_uf", "municipio"])
