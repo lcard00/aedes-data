@@ -9,13 +9,14 @@ set_logging_config()
 
 log = True
 
-merge = False
 check_infodengue = False
+merge = False
 
 year = 2024
-list_uf = []  # ["MG", "ES", "SP"]
-list_city = []
-# ["Divinópolis", "Carmo do Cajuru", "Nova Serrana", "Vila Velha", "Vitória", "São Paulo", "Jaboticabal"]
+list_uf = []  # ["MG",] # "ES", "SP"]
+list_city = (
+    []
+)  # ["Divinópolis",] # "Carmo do Cajuru", "Nova Serrana", "Vila Velha", "Vitória", "São Paulo", "Jaboticabal"]
 
 
 params = {
@@ -29,7 +30,7 @@ params = {
     "format": "json",
     "ibge_api": "https://servicodados.ibge.gov.br/api/v1/localidades/distritos",
     "infodengue_api": "https://info.dengue.mat.br/api/alertcity",
-    "disease_values": ["dengue", "chikungunya", "zika"],
+    "disease_values": ["dengue", "chikungunya"],  # zika
     "list_city": list_city,
     "list_uf": list_uf,
 }
@@ -58,7 +59,31 @@ if merge:
     merge_uf(params=params, log=log)
     merge_country(params=params, log=log)
 
+    # path = "data/Brasil/infodengue_data_brasil.parquet"
 
-# path = "data/Brasil/infodengue_data_brasil.parquet"
+    # df = pd.read_parquet(path)
 
-# df = pd.read_parquet(path)
+# mask_u = df["mesorregiao_uf"] == "MG"
+# mask_c = df["municipio"] == "Divinópolis"
+# mask_d = df["disease"].isin(["dengue"])#["dengue", "chikungunya"])
+# mask_y = df["year"].isin(range(2010, 2025))
+
+# mask = mask_u & mask_d & mask_y
+# df_u = df[mask].copy()
+# df_u = df_u.groupby(["mesorregiao_uf", "disease", "year"]).casos.agg(["sum"])
+# df_u["mean"] = df_u.groupby('year')['sum'].transform(lambda x: round(x / 3 if x.name == 2024 else x / 12, 2))
+
+# print(df_u)
+
+# mask = mask_u & mask_c & mask_d
+
+# df_d = df[mask].copy()
+# df_d = df_d.groupby(["municipio", "disease", "year"]).casos.agg(["sum"])
+# df_d["mean"] = df_d.groupby('year')['sum'].transform(lambda x: round(x / 3 if x.name == 2024 else x / 12, 2))
+
+
+# print(df_d)
+
+
+# print(f"Estados: {df["mesorregiao_uf"].nunique()}")
+# print(f"Municipios: {df["municipio"].nunique()}")

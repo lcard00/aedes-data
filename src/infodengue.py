@@ -11,7 +11,7 @@ def process_infodengue_data(params, log=False):
 
     df["csv_path"] = set_csv_path(params, log=log)
     df.drop_duplicates(subset=["geocode", "disease"])
-    
+
     return df
 
 
@@ -22,7 +22,7 @@ def df_assign(params, log=False):
 
     if log:
         logging.info(f"Assigning disease values {disease_values}...")
-        
+
     return pd.concat(
         [df.assign(disease=disease) for disease in disease_values], ignore_index=True
     ).sort_values(by=["geocode", "disease"])
@@ -35,13 +35,13 @@ def prepare_api_request(params, log=False):
     ew_end = params["ew_end"]
     format = params["format"]
     url = params["infodengue_api"]
-    
+
     columns_sort = ["disease", "SE"]
     columns_ascending = [True, False]
-    
+
     date = pd.Timestamp.today()
     df_mew = pd.DataFrame()
-    
+
     weekofyear = check_weekofyear(date, year, log=log)
 
     params_request = {
@@ -54,11 +54,11 @@ def prepare_api_request(params, log=False):
         "columns_ascending": columns_ascending,
         "weekofyear": weekofyear,
     }
-    
+
     if log:
         logging.info(f"Preparing API request...")
         logging.info(f"Request parameters: {params_request}")
-    
+
     for index, row in df.iterrows():
         df = pd.DataFrame()
         csv_path = row["csv_path"]
@@ -69,12 +69,12 @@ def prepare_api_request(params, log=False):
 
         file_path = csv_path + file_name
         check_dir(dir_path=csv_path, log=log)
-        
+
         params_request["geocode"] = geocode
         params_request["disease"] = disease
         params_request["file_path"] = file_path
         params_request["df"] = df
-        
+
         if not check_file(file_path):
             initial_file(params_request, log=log)
         else:
@@ -202,7 +202,9 @@ def request_api_data(params, log=False):
     columns_sort = params["columns_sort"]
     columns_ascending = params["columns_ascending"]
 
-    df_api = http_response(url_resp, format=format, max_retries=3, backoff_factor=60, log=log)
+    df_api = http_response(
+        url_resp, format=format, max_retries=3, backoff_factor=60, log=log
+    )
 
     if df_api.empty:
         if log:
@@ -225,7 +227,7 @@ def request_api_data(params, log=False):
     pd.concat([df, df_api[columns_api]], ignore_index=True).sort_values(
         columns_sort, ascending=columns_ascending
     ).dropna(axis=1).to_csv(file_path, index=False)
-    
+
     if log:
         logging.info(f"File '{file_path}' updated successfully...")
     return True

@@ -162,4 +162,4 @@ cython_debug/
 # Exclude data files.
 data/
 data_bk/
-tempCodeRunnerFile.py
+tempCodeRunnerFile.*
