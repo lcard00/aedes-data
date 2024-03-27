@@ -1,25 +1,28 @@
 from src.ibge import process_ibge_data
 from src.infodengue import prepare_api_request, process_infodengue_data
-from src.merge import merge_city
+from src.merge import merge_city, merge_country, merge_uf
 from src.utils import set_logging_config
+import pandas as pd
 
 
 set_logging_config()
 
 log = True
-merge = True
+
+merge = False
 check_infodengue = False
 
 year = 2024
-list_uf = ["MG"]
-list_city = ["Divinópolis", "Carmo do Cajuru"]
+list_uf = []  # ["MG", "ES", "SP"]
+list_city = []
+# ["Divinópolis", "Carmo do Cajuru", "Nova Serrana", "Vila Velha", "Vitória", "São Paulo", "Jaboticabal"]
 
 
 params = {
     "country": "Brasil",
     "ibge_path": "data/Brasil/_ibge",
     "ibge_file_name": "ibge_data.csv",
-    "infodengue_file_name": "infodengue_data.csv",
+    "infodengue_file_name": "infodengue_data",
     "year": year,
     "ew_start": 1,
     "ew_end": 53,
@@ -29,7 +32,6 @@ params = {
     "disease_values": ["dengue", "chikungunya", "zika"],
     "list_city": list_city,
     "list_uf": list_uf,
-    "state": False,
 }
 
 columns = ["mesorregiao_uf", "geocode"]
@@ -53,3 +55,10 @@ if merge:
     params["ibge_data"] = df_ibge
 
     merge_city(params=params, log=log)
+    merge_uf(params=params, log=log)
+    merge_country(params=params, log=log)
+
+
+# path = "data/Brasil/infodengue_data_brasil.parquet"
+
+# df = pd.read_parquet(path)
